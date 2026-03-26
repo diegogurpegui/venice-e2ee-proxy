@@ -1,0 +1,37 @@
+# Venice E2EE Proxy Configuration
+#
+# Environment variables override values in this file.
+# VENICE_API_KEY should always be set via environment variable, not here.
+
+# Server settings
+port: 3000
+host: "127.0.0.1"
+
+# Venice API
+venice_base_url: "https://api.venice.ai"
+
+# Attestation verification
+# When true (default), the proxy verifies the TEE attestation response:
+#   - TDX quote integrity (teeType, debug mode)
+#   - Client nonce binding (prevents replay attacks)
+#   - Signing key binding (Ethereum address in REPORTDATA)
+#   - Server verification cross-check
+# Set to false to skip verification (NOT recommended for production)
+verify_attestation: true
+
+# Full DCAP verification
+# When true, performs complete Intel TDX DCAP quote verification:
+#   - PCK certificate chain validation up to Intel SGX Root CA
+#   - Quote signature verification (ECDSA P-256)
+#   - QE identity validation
+#   - TCB level evaluation + CRL checking
+# Requires @phala/dcap-qvl package: npm install @phala/dcap-qvl
+enable_dcap: true
+
+# Session TTL in milliseconds (default: 30 minutes)
+# E2EE sessions are cached per model. After TTL expires, a new session
+# is created with fresh key exchange and attestation verification.
+session_ttl: 1800000
+
+# Log level: debug, info, warn, error
+log_level: "info"

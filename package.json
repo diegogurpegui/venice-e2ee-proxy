@@ -1,0 +1,44 @@
+{
+  "name": "venice-e2ee-proxy",
+  "version": "1.0.0",
+  "description": "Local proxy that transparently encrypts OpenAI-compatible requests using Venice AI's E2EE protocol",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:curl": "bash test/curl-test.sh"
+  },
+  "dependencies": {
+    "@phala/dcap-qvl": "^0.3.9",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "js-yaml": "^4.1.0",
+    "venice-e2ee": "file:./venice-e2ee"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.2",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jooray/venice-e2ee-proxy.git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "venice",
+    "e2ee",
+    "proxy",
+    "openai",
+    "encryption",
+    "tee",
+    "privacy"
+  ]
+}
