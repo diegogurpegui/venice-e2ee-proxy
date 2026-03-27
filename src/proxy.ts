@@ -66,7 +66,7 @@ export class ProxyHandler {
       // 1. Get or create E2EE session
       logger.debug(`Getting E2EE session for ${modelId}`);
       const { session, instance } = await this.sessionManager.getSession(modelId);
-      logger.debug(`Session ready for ${modelId} (attestation: ${session.attestation ? 'verified' : 'skipped'})`);
+      logger.info(`E2EE ${modelId} | attestation: ${session.attestation ? 'verified' : 'skipped'}`);
 
       // 2. Encrypt messages
       const { encryptedMessages, headers: e2eeHeaders, veniceParameters } = await instance.encrypt(body.messages, session);
@@ -335,7 +335,7 @@ export class ProxyHandler {
     const wantStream = body.stream === true;
     const veniceUrl = `${this.config.venice_base_url}/api/v1/chat/completions`;
 
-    logger.debug(`Passthrough request for model: ${body.model}`);
+    logger.info(`Passthrough ${body.model}`);
 
     try {
       // Forward all headers except host, and add authorization
