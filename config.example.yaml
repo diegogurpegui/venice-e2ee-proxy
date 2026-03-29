@@ -35,3 +35,7 @@ session_ttl: 1800000
 
 # Log level: debug, info, warn, error
 log_level: "info"
+
+# Forward unrecognized HTTP paths to Venice (same method/path/query/body).
+# Default false: unknown paths return 404.
+endpoint_passthru: false

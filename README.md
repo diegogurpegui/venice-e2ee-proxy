@@ -40,7 +40,7 @@ The proxy handles:
 
 ```bash
 # Clone with submodule
-git clone --recurse-submodules https://github.com/jooray/venice-e2ee-proxy.git
+git clone --recurse-submodules https://github.com/diegogurpegui/venice-e2ee-proxy.git
 cd venice-e2ee-proxy
 
 # Install dependencies
@@ -73,7 +73,7 @@ curl http://127.0.0.1:3000/v1/chat/completions \
 ### Setup
 
 ```bash
-git clone --recurse-submodules https://github.com/jooray/venice-e2ee-proxy.git
+git clone --recurse-submodules https://github.com/diegogurpegui/venice-e2ee-proxy.git
 cd venice-e2ee-proxy
 npm install
 ```
@@ -90,6 +90,39 @@ npm install
 ```bash
 npm run build
 npm start
+```
+
+## Running with Docker
+
+You need [Docker](https://docs.docker.com/get-docker/) and Docker Compose (v2: `docker compose`).
+
+1. Copy and edit environment variables:
+
+   ```bash
+   cp .env.example .env
+   # Set VENICE_API_KEY (required)
+   ```
+
+2. Build and start the container:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+The image is built from the `Dockerfile` in this repo. By default the build clones this project from GitHub at a **pinned commit** (`VENICE_PROXY_REF` in `docker-compose.yml`) so images are reproducible. To build from a different branch, tag, or commit, set `VENICE_PROXY_REF` (and optionally `VENICE_PROXY_REPO`) in your environment or in `docker-compose.yml` before building.
+
+Inside the container the proxy listens on `0.0.0.0`. Compose maps it to the host as `127.0.0.1:<port>:<port>` only (not exposed on all interfaces). Set `PORT` to change the listen and publish port (default `3000`).
+
+Check health:
+
+```bash
+curl http://127.0.0.1:3000/health
+```
+
+Stop:
+
+```bash
+docker compose down
 ```
 
 ## Configuration
@@ -114,6 +147,7 @@ cp .env.example .env
 | `ENABLE_DCAP` | `true` | Full DCAP quote verification |
 | `SESSION_TTL` | `1800000` | Session TTL in ms (default: 30 min) |
 | `LOG_LEVEL` | `info` | Log level: debug, info, warn, error |
+| `ENDPOINT_PASSTHRU` | `false` | When `true` or `1`, forward any request that does not match a built-in route to Venice using the same method, path, query string, and body. Uses the proxy’s API key (`Authorization` from the client is replaced). Venice’s status code and body are returned as-is. Network failures still yield a `502` from the proxy. |
 
 ### config.yaml
 
@@ -123,6 +157,7 @@ host: "127.0.0.1"
 venice_base_url: "https://api.venice.ai"
 verify_attestation: true
 enable_dcap: true
+endpoint_passthru: false
 session_ttl: 1800000
 log_level: "info"
 ```
@@ -219,6 +254,8 @@ curl http://127.0.0.1:3000/health
 The proxy exposes a standard OpenAI-compatible API on both endpoints:
 - `POST /v1/chat/completions`
 - `POST /chat/completions`
+
+It also implements `GET /v1/models` and `GET /models` (mapped to Venice’s models list). Any other path returns **404** unless `ENDPOINT_PASSTHRU` is enabled (see environment variables): then unmatched requests are forwarded to `VENICE_BASE_URL` with the same path and query (for example `GET /api/v1/...` on the proxy becomes `GET https://api.venice.ai/api/v1/...` when using the default base URL).
 
 This means it works with any OpenAI-compatible client library. Just point it at the proxy:
 

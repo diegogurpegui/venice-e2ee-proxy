@@ -17,6 +17,7 @@ function testConfig(overrides?: Partial<ProxyConfig>): ProxyConfig {
     venice_base_url: 'http://127.0.0.1:0', // will be overridden in tests
     verify_attestation: true,
     enable_dcap: false,
+    endpoint_passthru: false,
     session_ttl: 1800000,
     log_level: 'error', // quiet during tests
     ...overrides,
@@ -98,6 +99,7 @@ describe('Server basics', () => {
     const body = JSON.parse(res.body);
     expect(body.status).toBe('ok');
     expect(body.verify_attestation).toBe(true);
+    expect(body.endpoint_passthru).toBe(false);
   });
 
   it('GET /unknown returns 404', async () => {
@@ -135,6 +137,68 @@ describe('Server basics', () => {
   });
 });
 
+describe('ENDPOINT_PASSTHRU (Venice path forwarding)', () => {
+  let mockVenice: http.Server;
+  let proxyServer: http.Server;
+  let sessionManager: ReturnType<typeof createServer>['sessionManager'];
+
+  beforeAll(async () => {
+    mockVenice = http.createServer((req, res) => {
+      if (req.method === 'GET' && req.url === '/api/v1/extra') {
+        const auth = req.headers['authorization'];
+        if (!auth || !auth.includes('test-key')) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: 'Unauthorized' } }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ passthru: true }));
+        return;
+      }
+      if (req.method === 'GET' && req.url === '/api/v1/rate-limited') {
+        res.writeHead(429, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: 'Too many requests' } }));
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>(resolve => mockVenice.listen(0, '127.0.0.1', resolve));
+
+    const mockAddress = mockVenice.address() as { port: number };
+    const config = testConfig({
+      venice_base_url: `http://127.0.0.1:${mockAddress.port}`,
+      endpoint_passthru: true,
+    });
+    const result = createServer(config);
+    sessionManager = result.sessionManager;
+    proxyServer = result.app.listen(0, '127.0.0.1');
+    await new Promise<void>(resolve => proxyServer.once('listening', resolve));
+  });
+
+  afterAll(async () => {
+    sessionManager.destroy();
+    await Promise.all([
+      new Promise<void>(resolve => proxyServer.close(() => resolve())),
+      new Promise<void>(resolve => mockVenice.close(() => resolve())),
+    ]);
+  });
+
+  it('forwards GET to an arbitrary Venice path with proxy authorization', async () => {
+    const res = await request(proxyServer, 'GET', '/api/v1/extra');
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.passthru).toBe(true);
+  });
+
+  it('forwards Venice HTTP error responses unchanged', async () => {
+    const res = await request(proxyServer, 'GET', '/api/v1/rate-limited');
+    expect(res.status).toBe(429);
+    const body = JSON.parse(res.body);
+    expect(body.error.message).toContain('Too many');
+  });
+});
+
 describe('Passthrough (non-E2EE) requests', () => {
   let mockVenice: http.Server;
   let proxyServer: http.Server;
@@ -143,6 +207,20 @@ describe('Passthrough (non-E2EE) requests', () => {
   beforeAll(async () => {
     // Create a mock Venice API server
     mockVenice = http.createServer((req, res) => {
+      if (req.method === 'GET' && req.url?.startsWith('/api/v1/models')) {
+        const auth = req.headers['authorization'];
+        if (!auth || !auth.includes('test-key')) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: 'Unauthorized' } }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          object: 'list',
+          data: [{ id: 'qwen3-30b-a3b-p', object: 'model' }],
+        }));
+        return;
+      }
       if (req.method === 'POST' && req.url === '/api/v1/chat/completions') {
         let body = '';
         req.on('data', chunk => body += chunk);
@@ -216,6 +294,21 @@ describe('Passthrough (non-E2EE) requests', () => {
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.choices[0].message.content).toBe('Hello world');
+  });
+
+  it('forwards GET /v1/models to Venice with authorization', async () => {
+    const res = await request(proxyServer, 'GET', '/v1/models');
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.object).toBe('list');
+    expect(body.data[0].id).toBe('qwen3-30b-a3b-p');
+  });
+
+  it('forwards GET /models to the same Venice models list', async () => {
+    const res = await request(proxyServer, 'GET', '/models');
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.data[0].id).toBe('qwen3-30b-a3b-p');
   });
 
   it('forwards streaming non-E2EE request', async () => {
@@ -548,6 +641,7 @@ describe('Config loading', () => {
       expect(config.venice_api_key).toBe('test-key');
       expect(config.verify_attestation).toBe(true);
       expect(config.enable_dcap).toBe(true);
+      expect(config.endpoint_passthru).toBe(false);
       expect(config.session_ttl).toBe(1800000);
     } finally {
       if (origKey !== undefined) {
@@ -579,16 +673,19 @@ describe('Config loading', () => {
     const origKey = process.env.VENICE_API_KEY;
     const origPort = process.env.PORT;
     const origVerify = process.env.VERIFY_ATTESTATION;
+    const origPassthru = process.env.ENDPOINT_PASSTHRU;
 
     process.env.VENICE_API_KEY = 'env-key';
     process.env.PORT = '8080';
     process.env.VERIFY_ATTESTATION = 'false';
+    process.env.ENDPOINT_PASSTHRU = 'true';
 
     try {
       const config = loadConfig('/nonexistent/config.yaml');
       expect(config.venice_api_key).toBe('env-key');
       expect(config.port).toBe(8080);
       expect(config.verify_attestation).toBe(false);
+      expect(config.endpoint_passthru).toBe(true);
     } finally {
       if (origKey !== undefined) process.env.VENICE_API_KEY = origKey;
       else delete process.env.VENICE_API_KEY;
@@ -596,6 +693,8 @@ describe('Config loading', () => {
       else delete process.env.PORT;
       if (origVerify !== undefined) process.env.VERIFY_ATTESTATION = origVerify;
       else delete process.env.VERIFY_ATTESTATION;
+      if (origPassthru !== undefined) process.env.ENDPOINT_PASSTHRU = origPassthru;
+      else delete process.env.ENDPOINT_PASSTHRU;
     }
   });
 });
