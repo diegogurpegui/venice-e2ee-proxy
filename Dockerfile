@@ -1,10 +1,10 @@
-# Clones venice-e2ee-proxy from GitHub at a pinned ref (branch, tag, or full commit SHA).
-# Default ref is a fixed commit, not a moving branch — override VENICE_PROXY_REF only when you intend to upgrade.
+# Clones venice-e2ee-proxy from GitHub at ref (branch, tag, or full commit SHA).
+# Default is main (tip at clone time). Set VENICE_PROXY_REF to pin a commit for reproducible builds.
 FROM node:22-alpine AS builder
 WORKDIR /app
 
 ARG VENICE_PROXY_REPO=https://github.com/diegogurpegui/venice-e2ee-proxy.git
-ARG VENICE_PROXY_REF=9edb944bd478b66460994a40b279c2e4f2200e09
+ARG VENICE_PROXY_REF=main
 
 RUN apk add --no-cache git \
   && git clone "${VENICE_PROXY_REPO}" /app \

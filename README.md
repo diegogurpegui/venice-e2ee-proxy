@@ -94,7 +94,7 @@ npm start
 
 ## Running with Docker
 
-You need [Docker](https://docs.docker.com/get-docker/) and Docker Compose (v2: `docker compose`).
+You need [Docker](https://docs.docker.com/get-docker/) and Docker Compose (v2: `docker compose`). Only `docker-compose.yml` is versioned; name any custom file differently (for example `docker-compose.local.yml`) and point Compose at it with `docker compose -f …`.
 
 1. Copy and edit environment variables:
 
@@ -109,7 +109,7 @@ You need [Docker](https://docs.docker.com/get-docker/) and Docker Compose (v2: `
    docker compose up -d --build
    ```
 
-The image is built from the `Dockerfile` in this repo. By default the build clones this project from GitHub at a **pinned commit** (`VENICE_PROXY_REF` in `docker-compose.yml`) so images are reproducible. To build from a different branch, tag, or commit, set `VENICE_PROXY_REF` (and optionally `VENICE_PROXY_REPO`) in your environment or in `docker-compose.yml` before building.
+The image is built from the `Dockerfile` in this repo. If `VENICE_PROXY_REF` is not set, the build uses **`main`** (whatever tip is at clone time). Set `VENICE_PROXY_REF` to a branch name, tag, or full commit SHA when you want a specific revision or a reproducible image. You can also set `VENICE_PROXY_REPO` to clone from a fork.
 
 Inside the container the proxy listens on `0.0.0.0`. Compose maps it to the host as `127.0.0.1:<port>:<port>` only (not exposed on all interfaces). Set `PORT` to change the listen and publish port (default `3000`).
 

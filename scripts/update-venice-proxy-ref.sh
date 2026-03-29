@@ -25,7 +25,7 @@ if [[ -z "$SHA" || "$SHA" == 0000000000000000000000000000000000000000 ]]; then
 fi
 
 sed -i "s|^ARG VENICE_PROXY_REF=.*|ARG VENICE_PROXY_REF=${SHA}|" "${ROOT}/Dockerfile"
-sed -i "s|\${VENICE_PROXY_REF:-[a-f0-9]*}|\${VENICE_PROXY_REF:-${SHA}}|g" "${ROOT}/docker-compose.yml"
+sed -i "s|\${VENICE_PROXY_REF:-[^}]*}|\${VENICE_PROXY_REF:-${SHA}}|g" "${ROOT}/docker-compose.yml"
 sed -i "s|^# VENICE_PROXY_REF=.*|# VENICE_PROXY_REF=${SHA}|" "${ROOT}/.env.example"
 
 echo "VENICE_PROXY_REF -> ${SHA} (branch ${BRANCH}, repo ${REPO})"
