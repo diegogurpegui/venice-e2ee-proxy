@@ -18,6 +18,7 @@ function testConfig(overrides?: Partial<ProxyConfig>): ProxyConfig {
     verify_attestation: true,
     enable_dcap: false,
     endpoint_passthru: false,
+    e2ee_allow_tools: false,
     session_ttl: 1800000,
     log_level: 'error', // quiet during tests
     ...overrides,
@@ -100,6 +101,7 @@ describe('Server basics', () => {
     expect(body.status).toBe('ok');
     expect(body.verify_attestation).toBe(true);
     expect(body.endpoint_passthru).toBe(false);
+    expect(body.e2ee_allow_tools).toBe(false);
   });
 
   it('GET /unknown returns 404', async () => {
@@ -504,6 +506,20 @@ describe('E2EE request handling', () => {
     expect(lastReceivedBody.venice_parameters.enable_e2ee).toBe(true);
   });
 
+  it('strips tools from E2EE requests by default', async () => {
+    await request(proxyServer, 'POST', '/v1/chat/completions', {
+      model: 'e2ee-qwen3-30b-a3b-p',
+      messages: [{ role: 'user', content: 'Hello' }],
+      tools: [{ type: 'function', function: { name: 'fn', parameters: {} } }],
+      tool_choice: 'auto',
+      parallel_tool_calls: true,
+    });
+
+    expect(lastReceivedBody.tools).toBeUndefined();
+    expect(lastReceivedBody.tool_choice).toBeUndefined();
+    expect(lastReceivedBody.parallel_tool_calls).toBeUndefined();
+  });
+
   it('always requests streaming from Venice (even for non-streaming client request)', async () => {
     await request(proxyServer, 'POST', '/v1/chat/completions', {
       model: 'e2ee-qwen3-30b-a3b-p',
@@ -550,6 +566,98 @@ describe('E2EE request handling', () => {
     const secondPubKey = lastReceivedHeaders['x-venice-tee-client-pub-key'];
 
     expect(firstPubKey).toBe(secondPubKey);
+  });
+});
+
+describe('E2EE with e2ee_allow_tools enabled', () => {
+  let mockVenice: http.Server;
+  let proxyServer: http.Server;
+  let sessionManager: ReturnType<typeof createServer>['sessionManager'];
+  let lastReceivedBody: any;
+
+  beforeAll(async () => {
+    mockVenice = http.createServer((req, res) => {
+      if (req.method === 'GET' && req.url?.startsWith('/api/v1/tee/attestation')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          verified: true,
+          nonce: new URL(`http://localhost${req.url}`).searchParams.get('nonce'),
+          model: 'e2ee-qwen3-30b-a3b-p',
+          signing_key: mockTeeKeypair.pubKeyHex,
+          server_verification: {
+            tdx: { valid: true },
+            signingAddressBinding: { bound: true },
+            nonceBinding: { bound: true },
+            verifiedAt: new Date().toISOString(),
+            verificationDurationMs: 100,
+          },
+        }));
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/api/v1/chat/completions') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+          lastReceivedBody = JSON.parse(body);
+          const hasE2EEHeaders = req.headers['x-venice-tee-client-pub-key'] &&
+            req.headers['x-venice-tee-model-pub-key'];
+          if (hasE2EEHeaders) {
+            res.writeHead(200, {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+            });
+            res.write('data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}\n\n');
+            res.write('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n');
+            res.write('data: [DONE]\n\n');
+            res.end();
+          } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: { message: 'Missing E2EE headers' } }));
+          }
+        });
+        return;
+      }
+
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>(resolve => mockVenice.listen(0, '127.0.0.1', resolve));
+
+    const mockAddress = mockVenice.address() as { port: number };
+    const config = testConfig({
+      venice_base_url: `http://127.0.0.1:${mockAddress.port}`,
+      verify_attestation: false,
+      e2ee_allow_tools: true,
+    });
+    const result = createServer(config);
+    sessionManager = result.sessionManager;
+    proxyServer = result.app.listen(0, '127.0.0.1');
+    await new Promise<void>(resolve => proxyServer.once('listening', resolve));
+  });
+
+  afterAll(async () => {
+    sessionManager.destroy();
+    await Promise.all([
+      new Promise<void>(resolve => proxyServer.close(() => resolve())),
+      new Promise<void>(resolve => mockVenice.close(() => resolve())),
+    ]);
+  });
+
+  it('forwards tools and related fields to Venice', async () => {
+    const tools = [{ type: 'function', function: { name: 'fn', parameters: {} } }];
+    await request(proxyServer, 'POST', '/v1/chat/completions', {
+      model: 'e2ee-qwen3-30b-a3b-p',
+      messages: [{ role: 'user', content: 'Hello' }],
+      tools,
+      tool_choice: 'auto',
+      parallel_tool_calls: true,
+      stream: false,
+    });
+
+    expect(lastReceivedBody.tools).toEqual(tools);
+    expect(lastReceivedBody.tool_choice).toBe('auto');
+    expect(lastReceivedBody.parallel_tool_calls).toBe(true);
   });
 });
 

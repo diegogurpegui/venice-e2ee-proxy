@@ -148,6 +148,7 @@ cp .env.example .env
 | `SESSION_TTL` | `1800000` | Session TTL in ms (default: 30 min) |
 | `LOG_LEVEL` | `info` | Log level: debug, info, warn, error |
 | `ENDPOINT_PASSTHRU` | `false` | When `true` or `1`, forward any request that does not match a built-in route to Venice using the same method, path, query string, and body. Uses the proxy’s API key (`Authorization` from the client is replaced). Venice’s status code and body are returned as-is. Network failures still yield a `502` from the proxy. |
+| `E2EE_ALLOW_TOOLS` | `false` | When `true` or `1`, forward `tools`, `tool_choice`, and `parallel_tool_calls` on E2EE (`e2ee-*`) chat completions. Default strips them: many models do not support tools under E2EE, and tool-related content in the assistant reply is not decrypted by this proxy. |
 
 ### config.yaml
 
@@ -158,6 +159,7 @@ venice_base_url: "https://api.venice.ai"
 verify_attestation: true
 enable_dcap: true
 endpoint_passthru: false
+e2ee_allow_tools: false
 session_ttl: 1800000
 log_level: "info"
 ```
@@ -193,7 +195,9 @@ enable_dcap: false
 
 ### E2EE Models
 
-Send requests with models prefixed with `e2ee-`. The proxy will handle encryption/decryption transparently:
+Send requests with models prefixed with `e2ee-`. The proxy will handle encryption/decryption transparently.
+
+By default, **tool-calling parameters** (`tools`, `tool_choice`, `parallel_tool_calls`) are removed before the request is sent to Venice, because tool-related assistant output is not decrypted in the streaming path. To experiment with tools anyway, set `e2ee_allow_tools: true` in `config.yaml` or `E2EE_ALLOW_TOOLS=true` in the environment (see [Configuration](#configuration)).
 
 ```bash
 # Streaming (default)

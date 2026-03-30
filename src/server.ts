@@ -37,6 +37,7 @@ export function createServer(config: ProxyConfig) {
       verify_attestation: config.verify_attestation,
       enable_dcap: config.enable_dcap,
       endpoint_passthru: config.endpoint_passthru,
+      e2ee_allow_tools: config.e2ee_allow_tools,
     });
   });
 

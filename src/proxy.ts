@@ -74,15 +74,24 @@ export class ProxyHandler {
       const { encryptedMessages, headers: e2eeHeaders, veniceParameters } = await instance.encrypt(body.messages, session);
 
       // 3. Build Venice request
-      // Strip tool-related params — E2EE models generally don't support function calling,
-      // and even if they did, tool_calls in responses aren't decrypted by the proxy.
-      const { tools, tool_choice, parallel_tool_calls, ...bodyWithoutTools } = body as Record<string, unknown>;
-      if (tools || tool_choice || parallel_tool_calls) {
-        logger.warn(`Stripping unsupported params from E2EE request: ${[tools && 'tools', tool_choice && 'tool_choice', parallel_tool_calls && 'parallel_tool_calls'].filter(Boolean).join(', ')}`);
+      const bodyRecord = body as Record<string, unknown>;
+      let forwardFields: Record<string, unknown>;
+      if (this.config.e2ee_allow_tools) {
+        forwardFields = { ...bodyRecord };
+      } else {
+        // Strip tool-related params by default — many E2EE models don't support function calling,
+        // and tool_calls in responses aren't decrypted by the proxy.
+        const { tools, tool_choice, parallel_tool_calls, ...bodyWithoutTools } = bodyRecord;
+        if (tools || tool_choice || parallel_tool_calls) {
+          logger.warn(
+            `Stripping unsupported params from E2EE request: ${[tools && 'tools', tool_choice && 'tool_choice', parallel_tool_calls && 'parallel_tool_calls'].filter(Boolean).join(', ')}`
+          );
+        }
+        forwardFields = bodyWithoutTools;
       }
 
       const veniceBody: Record<string, unknown> = {
-        ...bodyWithoutTools,
+        ...forwardFields,
         messages: encryptedMessages,
         stream: true, // always stream from Venice (we decrypt chunks)
         venice_parameters: {
