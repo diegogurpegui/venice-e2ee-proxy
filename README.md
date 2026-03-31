@@ -255,13 +255,16 @@ curl http://127.0.0.1:3000/health
 
 ### API Compatibility
 
-The proxy exposes a standard OpenAI-compatible API on both endpoints:
+Standard OpenAI-compatible API:
+
 - `POST /v1/chat/completions`
 - `POST /chat/completions`
+- `GET /v1/models`
+- `GET /models`
 
-It also implements `GET /v1/models` and `GET /models` (mapped to Venice’s models list). Any other path returns **404** unless `ENDPOINT_PASSTHRU` is enabled (see environment variables): then unmatched requests are forwarded to `VENICE_BASE_URL` with the same path and query (for example `GET /api/v1/...` on the proxy becomes `GET https://api.venice.ai/api/v1/...` when using the default base URL).
+Any other path returns **404** unless `ENDPOINT_PASSTHRU` is enabled (see environment variables): then unmatched requests are forwarded to `VENICE_BASE_URL` with the same path and query (for example `GET /api/v1/...` on the proxy becomes `GET https://api.venice.ai/api/v1/...` when using the default base URL).
 
-This means it works with any OpenAI-compatible client library. Just point it at the proxy:
+Use any OpenAI-compatible client library with `base_url` pointing at the proxy:
 
 ```python
 # Python (openai library)
