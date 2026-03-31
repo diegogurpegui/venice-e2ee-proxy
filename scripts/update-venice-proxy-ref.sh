@@ -5,7 +5,7 @@
 # Usage:
 #   ./scripts/update-venice-proxy-ref.sh [branch]
 # Environment:
-#   VENICE_PROXY_REPO — remote URL (default: https://github.com/diegogurpegui/venice-e2ee-proxy.git)
+#   VENICE_PROXY_REPO — remote URL (default: https://github.com/jooray/venice-e2ee-proxy.git)
 #
 # Example:
 #   ./scripts/update-venice-proxy-ref.sh
@@ -16,7 +16,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BRANCH="${1:-main}"
-REPO="${VENICE_PROXY_REPO:-https://github.com/diegogurpegui/venice-e2ee-proxy.git}"
+REPO="${VENICE_PROXY_REPO:-https://github.com/jooray/venice-e2ee-proxy.git}"
 
 SHA="$(git ls-remote "$REPO" "refs/heads/${BRANCH}" | awk '{print $1; exit}')"
 if [[ -z "$SHA" || "$SHA" == 0000000000000000000000000000000000000000 ]]; then

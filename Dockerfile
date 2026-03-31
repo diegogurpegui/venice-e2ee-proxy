@@ -3,7 +3,7 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-ARG VENICE_PROXY_REPO=https://github.com/diegogurpegui/venice-e2ee-proxy.git
+ARG VENICE_PROXY_REPO=https://github.com/jooray/venice-e2ee-proxy.git
 ARG VENICE_PROXY_REF=main
 
 RUN apk add --no-cache git \

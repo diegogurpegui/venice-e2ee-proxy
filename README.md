@@ -40,7 +40,7 @@ The proxy handles:
 
 ```bash
 # Clone with submodule
-git clone --recurse-submodules https://github.com/diegogurpegui/venice-e2ee-proxy.git
+git clone --recurse-submodules https://github.com/jooray/venice-e2ee-proxy.git
 cd venice-e2ee-proxy
 
 # Install dependencies
@@ -73,7 +73,7 @@ curl http://127.0.0.1:3000/v1/chat/completions \
 ### Setup
 
 ```bash
-git clone --recurse-submodules https://github.com/diegogurpegui/venice-e2ee-proxy.git
+git clone --recurse-submodules https://github.com/jooray/venice-e2ee-proxy.git
 cd venice-e2ee-proxy
 npm install
 ```
